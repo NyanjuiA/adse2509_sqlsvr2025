@@ -80,3 +80,10 @@ values
 
 -- Get all the records from the StoreProduct table
 select * from StoreProduct;
+
+-- Create a table with an identity column
+Create table Person_Identity
+(
+	PersonID int identity(500,1) not null primary key,
+	Mobilenumber bigint not null
+);
