@@ -279,3 +279,181 @@ insert into SterlingEmployee values ('PCM98509F', 'Patricia', 'C', 'McKenna', 11
 
 -- Display/fetch all the records added/inserted from the dbo.SterlingEmployee table
 select * from dbo.SterlingEmployee;
+
+-- Use a self-join to get the names of employees and their managers
+select A.Fname + ' ' + A.Lname as 'Employee Name',
+B.Fname + ' ' + B.Lname as [Manager Name]
+from dbo.SterlingEmployee A
+join -- can still use inner join
+dbo.SterlingEmployee B
+on A.Mngr_ID = B.Emp_ID -- Link each employee to their manager
+where A.Emp_ID <> B.Emp_ID -- Optional to ensure that no employee is shown as managing themselves
+order by [Manager Name];
+
+-- Use a self-join to get the names managers and the number of employees each manages
+Select m.Emp_ID [Manager's Emp. ID], M.Fname + ' ' + M.Lname as [Manager's Name],
+count(E.emp_id) as [Number of Employees] -- count the number of employees reporting to each manager
+from SterlingEmployee E -- treat/assume this as the Employee table
+join SterlingEmployee M -- treat/assume this as the Manager table
+on E.Mngr_ID = M.Emp_ID  -- Match each employee to their manager using the manager's id
+group by m.Emp_ID,m.Fname,m.Lname -- Group results by manager's emp_id, firstname and lastname
+order by [Number of Employees] desc; -- Sort/arrange results by number of employees managed in descending order
+
+-- Get a list of all products that share the same colour from the production.product table in the AW2025 database
+Select P1.ProductID [Product ID], P1.Color 'Colour', P1.Name 'Product Name',
+P2.ProductID 'Related Product ID', P2.Name 'Related Product Name'
+from AdventureWorks2025.Production.Product P1
+inner join AdventureWorks2025.Production.Product P2
+on P1.Color = P2.Color and P1.ProductID < P2.ProductID
+order by P1.ProductID;
+
+-- ---------------------------------------------------------------------------
+-- Demonstrate Merge into
+-- ---------------------------------------------------------------------------
+-- 1. Create the products and newproducts table in the customer database
+if OBJECT_ID('Products') is null
+	Create table Products
+	(
+		ProductID int not null Primary Key,
+		[Name] nvarchar(30) not null,
+		[Type] nvarchar(30) not null,
+		PurchaseDate date not null
+	)
+else
+	Print('Products table already exists and will not be recreated.')
+
+if OBJECT_ID('NewProducts') is null
+	Create table NewProducts
+	(
+		ProductID int not null Primary Key,
+		[Name] nvarchar(30) not null,
+		[Type] nvarchar(30) not null,
+		PurchaseDate date not null
+	)
+else
+	Print('NewProducts table already exists and will not be recreated.')
+
+-- 2. Insert values/records in both tables
+Insert into Products
+values
+(101,'Rivets','Hardware', '2012-12-01'),
+(102,'Nuts','Hardware', '2012-12-01'),
+(103,'Washers','Hardware', '2011-12-01'),
+(104,'Rings','Hardware', '2013-01-15'),
+(105,'Paper Clips','Stationery', '2012-01-01');
+
+Insert into NewProducts
+values
+(102,'Nuts','Hardware', '2012-12-01'),
+(103,'Washers','Hardware', '2011-12-01'),
+(107,'Rings','Hardware', '2013-01-15'),
+(108,'Paper Clips','Stationery', '2012-01-01');
+
+-- Display details from the products and newproducts table
+select * from products;
+select * from NewProducts;
+
+-- 3. Merge the records from the NewProducts table to the Products Table
+Merge into dbo.Products P1
+using dbo.NewProducts P2
+on P1.ProductID = P2.ProductID
+when matched then update
+set P1.Name = P2.Name, P1.Type = P2.Type, P1.PurchaseDate = P2.PurchaseDate
+when not matched then
+insert (ProductID, Name, Type, PurchaseDate)
+values (P2.ProductID, P2.Name, P2.Type, P2.PurchaseDate)
+when not matched by source then delete
+output $action, Inserted.ProductID, Inserted.Name, Inserted.Type, Inserted.PurchaseDate,
+deleted.ProductID, deleted.Name, deleted.Type, deleted.PurchaseDate;
+
+-- ---------------------------------------------------------------------------
+-- Demonstrate Common Table Expression (CTE)
+-- ---------------------------------------------------------------------------
+-- Display the year and number of customers in a given using a CTE
+with CTE_OrderYear
+as
+(
+	Select Year(orderdate) as OrderYear, CustomerId
+	from AdventureWorks2025.Sales.SalesOrderHeader
+)
+Select Orderyear, count(distinct customerid) as 'Number of customers'
+from CTE_OrderYear
+group by OrderYear
+order by OrderYear;
+
+-- Recursive CTE to find all employees who report directly or indirectly to a manager
+with EmployeeHeirachy as
+(
+-- Anchor member: top-leve-manager (e.g., CEO)
+	Select Emp_ID, Fname, Lname, Mngr_Id
+	from dbo.SterlingEmployee
+	where Mngr_ID is null
+
+	union all
+
+	-- Recursive member: find employees who report to somenone already in the heirachy
+	select E.Emp_ID, E.fname,E.lname,E.mngr_ID
+	from dbo.SterlingEmployee E
+	Join EmployeeHeirachy h on E.Mngr_ID = H.Emp_ID
+)
+Select * from EmployeeHeirachy; -- NB: will not yeild any results as we don't have a manager who's in charge of all employees & Managers in the dbo.sterlingemployee table
+
+-- ---------------------------------------------------------------------------
+-- Demonstrate Union, Union All, and Except
+-- ---------------------------------------------------------------------------
+-- Display all the product IDs from the Production.Product table and the matching ProductIDs from the Sales.Salesorderdetails table without duplicates
+select productid from Production.product
+union
+select productid from sales.salesorderdetail;
+
+-- Display all the product IDs from the Production.Product table and the matching ProductIDs from the Sales.Salesorderdetails table with duplicates
+select productid from Production.product
+union all
+select productid from sales.salesorderdetail;
+
+-- Display all the distinct rows  from the Production.Product table that don't have matching records from the Sales.Salesorderdetails table using the except operator
+select productid from Production.product
+except
+select productid from sales.salesorderdetail;
+
+-- ---------------------------------------------------------------------------
+-- Demonstrate Pivot and Unpivot
+-- ---------------------------------------------------------------------------
+-- Use the pivot operator to display the above query row wise
+Select top 5 'Total Sales Year to Date'
+as [Grand Totals], [NorthWest], [NorthEast], [Central], [SouthWest], [SouthEast] -- column headings/headers
+from
+(
+	Select top 5 [Name], salesytd
+	from Sales.SalesTerritory
+)
+as sourcetable
+pivot
+(
+	sum(salesytd)
+	for name in ([NorthWest], [NorthEast], [Central], [SouthWest], [SouthEast])
+)As PivotTable;
+
+--unpivot the above data	
+
+-- Create a CTE to Pivot the data first
+WITH PivotTable AS (
+    SELECT 'TotalSalesYTD' AS GrandTotal,
+           [Northwest], [Northeast], [Central], [Southwest], [Southeast]
+    FROM (
+        SELECT Name, SalesYTD
+        FROM adventureworks2025.Sales.SalesTerritory
+        WHERE Name IN ('Northwest', 'Northeast', 'Central', 'Southwest', 'Southeast')
+    ) AS SourceTable
+    PIVOT (
+        SUM(SalesYTD)
+        FOR Name IN ([Northwest], [Northeast], [Central], [Southwest], [Southeast])
+    ) AS p
+)
+
+-- Now unpivot from the CTE
+SELECT Name, SalesYTD
+FROM PivotTable
+UNPIVOT (
+    SalesYTD FOR Name IN ([Northwest], [Northeast], [Central], [Southwest], [Southeast])
+) AS unpvt;

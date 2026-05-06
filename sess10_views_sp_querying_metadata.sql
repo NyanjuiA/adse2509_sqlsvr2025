@@ -1,0 +1,1 @@
+/* This session covers working with views, stored procedures and querying database metadata. */
