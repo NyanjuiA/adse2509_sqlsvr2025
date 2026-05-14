@@ -104,6 +104,9 @@ Create table EMP_CellularPhone
 	PersonName nvarchar(50) not null
 );
 
+-- if OBJECT_ID('Emp_CellularPhone') is not null
+--	drop table EMP_CellularPhone;
+
 -- Add/insert a record to the Emp_cellularPhone table
 insert into EMP_CellularPhone (PersonName)
 values ('William Smith'), ('Abigail Mueni');
