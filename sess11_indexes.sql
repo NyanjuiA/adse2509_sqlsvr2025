@@ -123,7 +123,7 @@ from Product_Details
 where Rate >= 4000;
 
 -- ---------------------------------------------------------------------------
--- Demonstrate working with cursors
+-- Extra, not in syllabus Demonstrate working with cursors
 -- ---------------------------------------------------------------------------
 --1. Create an Employee's Table
 Create Table Employee
